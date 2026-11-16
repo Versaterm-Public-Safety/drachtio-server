@@ -77,6 +77,10 @@ jobs:
           if git cherry upstream/main HEAD | grep -q '^-'; then
             echo "::warning::Some versaterm/main commits are already upstream; drop them and update PATCHES.md"
           fi
+          if ! git diff --quiet "$base" upstream/main -- .github/workflows/ci.yml; then
+            echo "::warning::Upstream changed .github/workflows/ci.yml since the base; mirror the change in versaterm-ci.yml"
+            echo "> Upstream changed \`.github/workflows/ci.yml\`: mirror it in \`versaterm-ci.yml\`." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Dry-run rebase onto upstream/main
         run: |

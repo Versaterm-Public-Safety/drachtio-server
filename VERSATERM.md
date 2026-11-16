@@ -45,8 +45,9 @@ upstream/main ──●──●──●──●  (vX.Y.Z)
 4. **Fix with a minimal diff.** Follow the surrounding code style. Do not reformat unrelated
    code or bump dependencies in the same PR. If the fix belongs in sofia-sip (`deps/sofia-sip`),
    send it to that project instead.
-5. **Run the upstream CI locally or on the fork.** Pushing the branch runs `CI` (build plus
-   `npm run test-ci`) on this fork.
+5. **Run the upstream test suite.** Pushing the branch runs `Versaterm CI`, which runs the
+   upstream build and `npm run test-ci` on a pinned runner, and upstream's own `CI` workflow
+   on this fork. See [CI](#ci) below.
 6. **Open the PR against `drachtio/drachtio-server:main`.** Follow the PR checklist below.
 7. **Carry it in the fork if needed.** Cherry-pick the commits onto `versaterm/main` through a PR,
    and add a row to [PATCHES.md](PATCHES.md).
@@ -73,6 +74,18 @@ Model: [drachtio/drachtio-server#510](https://github.com/drachtio/drachtio-serve
 ## Patches carried on `versaterm/main`
 
 See [PATCHES.md](PATCHES.md).
+
+## CI
+
+| Workflow | What it runs | Role |
+| --- | --- | --- |
+| `CI` (`ci.yml`, upstream, unmodified) | Upstream build and `npm run test-ci` on `ubuntu-latest` | Shows what upstream CI will report on a PR. |
+| `Versaterm CI` (`versaterm-ci.yml`) | The same steps, pinned to `ubuntu-24.04` | **Required check** (`upstream-tests`). |
+
+The pinned copy exists because a moving `ubuntu-latest` image can break upstream CI for
+reasons unrelated to the code. In November 2026, the move to newer Boost and CMake broke the
+build of `v0.9.12` and of upstream `main`. Keep its steps identical to upstream `ci.yml`. The
+sync workflow warns when upstream changes `ci.yml`.
 
 ## Images
 
@@ -119,6 +132,7 @@ git tag vX.Y.Z-vt.1 versaterm/main && git push origin vX.Y.Z-vt.1
 ## Repository settings
 
 - `main`: force pushes and deletion blocked.
-- `versaterm/main`: pull request and green `build` check required. Force pushes are allowed
-  only for administrators doing a release rebase.
+- `versaterm/main`: pull request, code-owner review, linear history and green
+  `upstream-tests` and `image` checks required. Administrators may bypass to do a release
+  rebase.
 - Code owners: [.github/CODEOWNERS](.github/CODEOWNERS).
