@@ -1,0 +1,63 @@
+# Copy of upstream .github/workflows/ci.yml (same steps), pinned to ubuntu-24.04.
+# Upstream's ci.yml runs on ubuntu-latest, whose migration to newer Boost/CMake currently
+# breaks the build of released versions; this pinned copy is the required check for the fork.
+# Keep the steps in sync with upstream (the upstream sync workflow reports ci.yml changes).
+
+name: Versaterm CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  upstream-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: >
+          sudo apt-get update &&
+          sudo apt-get install -y
+          libboost-filesystem-dev
+          libboost-log-dev
+          libboost-system-dev
+          libboost-thread-dev
+          libcurl4-openssl-dev
+          libgoogle-perftools-dev
+          libtool
+          libtool-bin
+          libunwind-dev
+          sip-tester
+      - name: build drachtio
+        run: |
+          ./autogen.sh
+          mkdir -p build && cd $_
+          ../configure --enable-tcmalloc=yes
+          make
+          sudo make install
+      - name: install nodejs 
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: run ci tests
+        run: |
+          cd test
+          npm install
+          npm run test-ci
+      - name: dump drachtio log
+        if: always()
+        run: |
+          if [ -f /tmp/drachtio.log ]; then cat /tmp/drachtio.log; fi
+      - name: upload per-fixture drachtio logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: drachtio-fixture-logs-versaterm
+          path: /tmp/drachtio-fixture-*.log
+          if-no-files-found: ignore
+          retention-days: 7
