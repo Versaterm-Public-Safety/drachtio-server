@@ -7,7 +7,8 @@ Base: upstream `v0.9.12`
 
 | Patch | Upstream issue | Upstream PR | Status | Commits |
 | --- | --- | --- | --- | --- |
-| _none yet_ | | | | |
+| Discard a 2xx retransmitted over a reliable transport before the ACK is sent | [#513](https://github.com/drachtio/drachtio-server/issues/513) | not opened yet (branch `fix/tcp-2xx-retransmit-before-ack`) | carried, upstream PR pending | bafd2143ff |
+| Do not force requests onto a closed connection cached for a registration | [#512](https://github.com/drachtio/drachtio-server/issues/512) | not opened yet (branch `fix/stale-subscription-tport`) | carried, upstream PR pending | acb249da46 |
 
 Fork infrastructure commits (`VERSATERM.md`, `PATCHES.md`, `docker/versaterm/`,
 `.github/workflows/versaterm-*.yml`, `.github/CODEOWNERS`) are not patches and are never
