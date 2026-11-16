@@ -1,0 +1,96 @@
+name: Versaterm upstream sync
+
+# Weekly check of this fork against drachtio/drachtio-server:
+#   1. fast-forwards the mirror branch `main` to upstream/main (never rewrites it);
+#   2. reports a newer upstream release than the base of versaterm/main;
+#   3. lists versaterm/main commits that upstream now contains (patches to drop);
+#   4. dry-runs a rebase of versaterm/main onto upstream/main and fails on conflict.
+# versaterm/main itself is never rewritten here: rebases are done by a maintainer.
+#
+# Updating `main` needs a token allowed to push workflow files when upstream changes
+# .github/workflows. Set the SYNC_TOKEN secret (fine-grained PAT or app token with
+# contents + workflows write on this repository); GITHUB_TOKEN is used otherwise.
+
+on:
+  schedule:
+    - cron: "0 10 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout versaterm/main
+        uses: actions/checkout@v4
+        with:
+          ref: versaterm/main
+          fetch-depth: 0
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/drachtio/drachtio-server.git
+          git fetch --quiet --tags upstream main
+          git fetch --quiet origin main
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fast-forward mirror main
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
+        run: |
+          if git merge-base --is-ancestor upstream/main origin/main; then
+            echo "main is up to date with upstream/main ($(git rev-parse --short upstream/main))" | tee -a "$GITHUB_STEP_SUMMARY"
+          elif git merge-base --is-ancestor origin/main upstream/main; then
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/merge-upstream" -f branch=main
+            echo "main fast-forwarded to upstream/main ($(git rev-parse --short upstream/main))" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::main has diverged from upstream/main; it must stay a strict mirror"
+            exit 1
+          fi
+
+      - name: Report
+        id: report
+        run: |
+          base=$(git merge-base HEAD upstream/main)
+          base_tag=$(git describe --tags --abbrev=0 --exclude '*-vt.*' "$base" 2>/dev/null || echo none)
+          latest_tag=$(git tag --merged upstream/main --list 'v*' --sort=-v:refname | grep -v -- '-vt\.' | head -1)
+          {
+            echo "### versaterm/main vs upstream"
+            echo ""
+            echo "- Base: \`$(git rev-parse --short "$base")\` (release $base_tag)"
+            echo "- Latest upstream release: $latest_tag"
+            echo "- upstream/main: \`$(git rev-parse --short upstream/main)\`, $(git rev-list --count "$base"..upstream/main) commit(s) ahead of the base"
+            echo ""
+            if [ "$base_tag" != "$latest_tag" ]; then
+              echo "> **New upstream release $latest_tag**: consider rebasing versaterm/main onto it."
+              echo ""
+            fi
+            echo "#### Versaterm commits (git cherry: \`-\` = already upstream, drop it)"
+            echo '```'
+            git cherry -v upstream/main HEAD || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if git cherry upstream/main HEAD | grep -q '^-'; then
+            echo "::warning::Some versaterm/main commits are already upstream; drop them and update PATCHES.md"
+          fi
+
+      - name: Dry-run rebase onto upstream/main
+        run: |
+          git checkout --quiet -b rebase-check
+          if git rebase --quiet upstream/main; then
+            echo "Rebase of versaterm/main onto upstream/main: **clean**" >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "Rebase of versaterm/main onto upstream/main: **conflict**"
+              echo '```'
+              git status --short
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            git rebase --abort
+            echo "::error::versaterm/main no longer rebases cleanly onto upstream/main"
+            exit 1
+          fi
